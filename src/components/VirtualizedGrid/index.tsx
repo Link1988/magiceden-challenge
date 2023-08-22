@@ -14,8 +14,10 @@ import 'react-virtualized/styles.css';
 
 import { useWindowSize } from '../../hooks/useWindowResize';
 
-import { Item } from '../Item';
+import Card from '../Card';
+import CardSkeleton from '../Card/skeleton';
 import Search from '../Search';
+import NoResults from '../NoResults';
 
 const Grid = (_Grid as unknown) as FC<GridProps>;
 const WindowScroller = (_WindowScroller as unknown) as FC<WindowScrollerProps>;
@@ -26,7 +28,8 @@ interface VirtualizedGridProps {
   numColumns?: number;
 }
 
-const LIMIT_CARDS = 20
+const LIMIT_CARDS = 20;
+const INITIAL_COLUMNS = 4;
 
 const fetchCards = async (offset: number) => {
   const { data } = await axios.get(
@@ -39,7 +42,7 @@ const fetchCards = async (offset: number) => {
   };
 };
 
-export function VirtualizedGrid({
+export default function VirtualizedGrid({
   itemMinWidth,
   numColumns
 }: VirtualizedGridProps): JSX.Element {
@@ -47,15 +50,15 @@ export function VirtualizedGrid({
   const gridRef = useRef<any>(null);
   const containerRef = useRef<any>(null);
   const containerWidth = containerRef?.current?.clientWidth;
-  const columnCount = calculateColumnCount(containerWidth) ?? 4
+  const columnCount = calculateColumnCount(containerWidth) ?? INITIAL_COLUMNS
 
   const windowSize = useWindowSize();
 
-  const { data, hasNextPage, fetchNextPage, isFetchingNextPage } =
+  const { data, hasNextPage, fetchNextPage, isFetchingNextPage, isFetching } =
     useInfiniteQuery(['nfts'], ({ pageParam = 0 }) => fetchCards(pageParam), {
       getNextPageParam: (lastPage) => {
-        const hasNextPage = lastPage.results.length === 20 || lastPage.results.length === 20 - 1
-        const nextPage = hasNextPage ? lastPage.offset + 20 : undefined;
+        const hasNextPage = lastPage.results.length === LIMIT_CARDS || lastPage.results.length === LIMIT_CARDS - 1
+        const nextPage = hasNextPage ? lastPage.offset + LIMIT_CARDS : undefined;
         return nextPage;
       },
     });
@@ -70,10 +73,18 @@ export function VirtualizedGrid({
 
     return (
       <div key={key} style={{ ...style }} className="card">
-        {item && (<Item img={item?.img} title={item.title} price={item?.price} />)}
+        {item && (<Card img={item?.img} title={item.title} price={item?.price} />)}
       </div>
     );
   };
+
+  const skeletonRender = ({ key, style }: any) => {
+    return (
+      <div key={key} style={{ ...style }} className="card">
+        <CardSkeleton />
+      </div>
+    )
+  }
 
   function calculateColumnCount(width: number) {
     return Math.floor(width / itemMinWidth);
@@ -111,44 +122,50 @@ export function VirtualizedGrid({
         onChange={onChangeSearch}
       />
       <div ref={containerRef} className='grid-container'>
-        <WindowScroller>
-          {({ height, isScrolling, scrollTop }) => (
-            <AutoSizer disableHeight>
-            {() => {
-              const columns =
-                numColumns ?? calculateColumnCount(containerWidth);
-              const rowCount = Math.ceil(items.length / columns);
-              const itemWidth = calculateItemWidth(containerWidth, columns);
+        {
+          isFetchingNextPage && !isFetching ? <CardSkeleton /> : !isFetching && !items.length ? (
+            <NoResults />
+          ) : (
+            <WindowScroller>
+              {({ height, isScrolling, scrollTop }) => (
+                <AutoSizer disableHeight>
+                {() => {
+                  const columns =
+                    numColumns ?? calculateColumnCount(containerWidth);
+                  const rowCount = Math.ceil(items.length / columns);
+                  const itemWidth = calculateItemWidth(containerWidth, columns);
 
-              return (
-                <Grid
-                  ref={(grid: any) => {
-                    gridRef.current = grid
-                  }}
-                  autoHeight
-                  columnCount={columnCount}
-                  columnWidth={itemWidth}
-                  width={containerWidth || 0}
-                  height={height}
-                  rowCount={rowCount}
-                  rowHeight={calculateCardHeight()}
-                  isScrolling={isScrolling}
-                  scrollTop={scrollTop}
-                  onScroll={({ clientHeight, scrollHeight, scrollTop }) => {
+                  return (
+                    <Grid
+                      ref={(grid: any) => {
+                        gridRef.current = grid
+                      }}
+                      autoHeight
+                      columnCount={columnCount}
+                      columnWidth={itemWidth}
+                      width={containerWidth || 0}
+                      height={height}
+                      rowCount={rowCount}
+                      rowHeight={calculateCardHeight()}
+                      isScrolling={isScrolling}
+                      scrollTop={scrollTop}
+                      onScroll={({ clientHeight, scrollHeight, scrollTop }) => {
 
-                    const scrollTopRef = scrollTop * 2
+                        const scrollTopRef = scrollTop * 2
 
-                    if (hasNextPage && !isFetchingNextPage && scrollHeight - scrollTopRef - clientHeight < 500) {
-                      fetchNextPage();
-                    }
-                  }}
-                  cellRenderer={cardRenderer}
-                />
-              );
-            }}
-          </AutoSizer>
-          )}
-        </WindowScroller>
+                        if (hasNextPage && !isFetchingNextPage && scrollHeight - scrollTopRef - clientHeight < 500) {
+                          fetchNextPage();
+                        }
+                      }}
+                      cellRenderer={isFetchingNextPage ? skeletonRender : cardRenderer}
+                    />
+                  );
+                }}
+              </AutoSizer>
+              )}
+            </WindowScroller>
+          )
+        }
       </div>
     </>
   );
