@@ -8,6 +8,9 @@ The project it's responsive for big screens should show 4 cards per row, for med
 
 If the search does not find anything should show a message No results found
 
+Pre-requisites
+Use node 16.18.1 to run this project
+
 To run this project locally just run
 
 ### `npm start`
